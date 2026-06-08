@@ -1,0 +1,173 @@
+/*
+ * panel.css — Extension UI (PRD §6). All selectors are `ups-` prefixed and use
+ * high specificity + !important on layout-critical bits so the host page's CSS
+ * cannot accidentally hide or restyle our controls.
+ */
+
+/* ---------- Floating control panel ---------- */
+.ups-panel {
+  position: fixed !important;
+  right: 16px !important;
+  bottom: 16px !important;
+  z-index: 2147483647 !important;
+  width: 260px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 13px !important;
+  color: #15202b !important;
+  background: #ffffff !important;
+  border: 1px solid #d7dde3 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18) !important;
+  overflow: hidden;
+}
+
+.ups-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #06c167; /* Uber Eats green-ish, but clearly our own chrome */
+  color: #ffffff;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ups-panel__title {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.ups-panel__collapse {
+  all: unset;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  border-radius: 6px;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ups-panel__collapse:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ups-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.ups-panel--collapsed {
+  width: auto;
+}
+.ups-panel--collapsed .ups-panel__body {
+  display: none;
+}
+
+.ups-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ups-row__label {
+  color: #5b6770;
+}
+
+/* ---------- Buttons ---------- */
+.ups-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-block;
+  text-align: center;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+.ups-btn--primary {
+  background: #15202b;
+  color: #ffffff;
+}
+.ups-btn--primary:hover {
+  background: #2a3947;
+}
+.ups-btn--primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.ups-btn--toggle {
+  background: #eef1f4;
+  color: #15202b;
+  border: 1px solid #d7dde3;
+  padding: 7px 10px;
+}
+.ups-btn--toggle:hover {
+  background: #e2e7ec;
+}
+
+/* ---------- Status line ---------- */
+.ups-status {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #5b6770;
+  min-height: 16px;
+}
+.ups-status--ok {
+  color: #0a7d3c;
+}
+.ups-status--warn {
+  color: #9a5b00;
+}
+
+/* ---------- Group headers injected into the grid ---------- */
+.ups-decoration {
+  grid-column: 1 / -1 !important; /* span the full row in CSS grids */
+  width: 100% !important;
+  box-sizing: border-box;
+  margin: 14px 0 6px !important;
+  padding: 6px 10px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  color: #15202b !important;
+  background: #eafaf0 !important;
+  border-left: 4px solid #06c167 !important;
+  border-radius: 4px !important;
+}
+
+/* ---------- Per-item verification badges ---------- */
+.ups-badge {
+  display: inline-block;
+  position: relative;
+  z-index: 5;
+  margin: 4px 6px 0 0;
+  padding: 2px 7px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.5 !important;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+/* listed = solid green (came straight from Uber Eats) */
+.ups-badge--listed {
+  background: #06c167;
+  color: #ffffff;
+}
+/* computed = outlined amber (the extension derived it — sanity-check me) */
+.ups-badge--computed {
+  background: #fff5e6;
+  color: #9a5b00;
+  border: 1px dashed #d99b2b;
+}
+/* none = muted gray */
+.ups-badge--none {
+  background: #f0f2f4;
+  color: #8893a0;
+  border: 1px solid #dce1e6;
+}

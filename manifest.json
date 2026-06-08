@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Unit Price Sorter",
+  "version": "1.0.0",
+  "description": "Re-sort grocery listings by their true unit price (per lb, per fl oz, per each) instead of sticker price. Uber Eats supported in v1.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Unit Price Sorter",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "permissions": [],
+  "host_permissions": [
+    "https://www.ubereats.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.ubereats.com/*"
+      ],
+      "css": [
+        "styles/panel.css"
+      ],
+      "js": [
+        "src/core/units.js",
+        "src/core/parse.js",
+        "src/core/normalize.js",
+        "src/core/group.js",
+        "src/core/sort.js",
+        "src/adapters/registry.js",
+        "src/adapters/ubereats.js",
+        "src/core/scroll.js",
+        "src/core/render.js",
+        "src/core/panel.js",
+        "src/core/engine.js",
+        "src/content/main.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
