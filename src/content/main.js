@@ -5,8 +5,13 @@
  * across Uber Eats' in-app (SPA) navigation by re-injecting if React removes it.
  */
 (function () {
+  const TAG = "[Unit Price Sorter]";
   const UPS = window.UPS;
-  if (!UPS) return;
+  if (!UPS) {
+    console.warn(TAG, "core namespace missing — content scripts failed to load.");
+    return;
+  }
+  console.info(TAG, "content script loaded on", location.href);
 
   // Optional per-site config override (FR-3 cardSelector, NFR-5). A power user
   // can set `window.__UPS_CONFIG__ = { cardSelector: '...' }` before/after load.
@@ -15,7 +20,11 @@
   }
 
   const adapter = UPS.getAdapter(location.href);
-  if (!adapter) return; // not a supported platform
+  if (!adapter) {
+    console.warn(TAG, "no adapter matched this URL — panel not injected.");
+    return; // not a supported platform
+  }
+  console.info(TAG, "adapter:", adapter.id, "— injecting panel.");
 
   let running = false;
 

@@ -19,12 +19,12 @@
   },
   "permissions": [],
   "host_permissions": [
-    "https://www.ubereats.com/*"
+    "https://*.ubereats.com/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "https://www.ubereats.com/*"
+        "https://*.ubereats.com/*"
       ],
       "css": [
         "styles/panel.css"
