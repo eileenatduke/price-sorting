@@ -137,7 +137,11 @@
     }
     if (!cands.length) return null;
 
-    const order = [UPS.FAMILY.WEIGHT, UPS.FAMILY.VOLUME, UPS.FAMILY.COUNT];
+    // Prefer VOLUME first: a volume unit (fl oz, L, gal) means the item is a
+    // liquid, which must be priced by volume — Uber often also lists a (wrong,
+    // density-derived) weight in the name, which we must NOT pick. Then weight,
+    // then count.
+    const order = [UPS.FAMILY.VOLUME, UPS.FAMILY.WEIGHT, UPS.FAMILY.COUNT];
     for (const fam of order) {
       const inFam = cands.filter((c) => c.family === fam);
       if (inFam.length) {

@@ -158,6 +158,11 @@ ok("'(25 oz, 30 ct)' is NOT multiplied (total, not per-item)", (() => {
   const s = UPS.parseSize("Tortillas (25 oz, 30 ct) 750 oz");
   return s && approx(s.qty, 25); // not 25*30
 })());
+ok("liquid: prefers fl oz over a (wrong) weight in the name", (() => {
+  // Milk lists a bogus weight "(133.5 oz)" plus the real "133.5 fl oz" volume.
+  const s = UPS.parseSize("Whole Milk (133.5 oz) 133.5 fl oz");
+  return s && s.unitKey === "floz" && approx(s.qty, 133.5);
+})(), UPS.parseSize("Whole Milk (133.5 oz) 133.5 fl oz"));
 
 /* ---------------- adapter extraction ---------------- */
 section("adapter (ubereats) extraction");
