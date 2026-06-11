@@ -19,19 +19,27 @@
     return PRICE_MARKER.test(el.textContent || "");
   }
 
+  // Uber Eats tags every product card with data-testid="store-item-<id>".
+  // This is far more reliable than guessing a card from page text/structure.
+  const CARD_SELECTOR = '[data-testid^="store-item-"]';
+
   /**
-   * Discover product cards by price text. We collect likely card containers
-   * (links and list items that contain a price), then keep only the innermost
-   * ones so each result is a single product, not a section wrapper.
+   * Discover product cards. Primary path uses Uber Eats' own per-card test id
+   * (catches every card uniformly); we fall back to the older innermost-<li>/<a>
+   * text heuristic only if no tagged cards are present (e.g. a layout change).
    */
   function findCards(root, config = {}) {
     if (config.cardSelector) {
       return Array.from(root.querySelectorAll(config.cardSelector)).filter(hasPrice);
     }
 
+    // Primary: every product card carries data-testid="store-item-<id>".
+    const tagged = Array.from(root.querySelectorAll(CARD_SELECTOR)).filter(hasPrice);
+    if (tagged.length) return tagged;
+
+    // Fallback (older/edge layouts): innermost <li>/<a> that contains a price.
     const candidates = [];
     const seen = new Set();
-    // Cards on Uber Eats are typically <li> or <a href> wrappers.
     const nodeList = root.querySelectorAll("li, a[href]");
     for (const el of nodeList) {
       if (seen.has(el)) continue;
@@ -44,11 +52,34 @@
     }
 
     // Keep innermost cards: drop any candidate that contains another candidate.
-    const innermost = candidates.filter(
+    return candidates.filter(
       (el) => !candidates.some((other) => other !== el && el.contains(other))
     );
+  }
 
-    return innermost;
+  /**
+   * Gather machine-readable text that the *visible* text may omit — image `alt`,
+   * `aria-label` and `title` attributes on the card and its descendants. Uber
+   * Eats frequently stashes the net weight (e.g. "20 oz (1.25 lb)") in the
+   * product image's alt text even when the on-card title leaves it out, so the
+   * size parser must see these too (FR-5). Defensive for the Node test's fake card.
+   */
+  function attrText(card) {
+    const parts = [];
+    const add = (v) => { if (v) parts.push(String(v)); };
+    if (card.getAttribute) {
+      add(card.getAttribute("aria-label"));
+      add(card.getAttribute("title"));
+    }
+    if (typeof card.querySelectorAll === "function") {
+      card.querySelectorAll("img[alt], [aria-label], [title]").forEach((n) => {
+        if (!n.getAttribute) return;
+        add(n.getAttribute("alt"));
+        add(n.getAttribute("aria-label"));
+        add(n.getAttribute("title"));
+      });
+    }
+    return parts.join(" · ").replace(/\s+/g, " ").trim();
   }
 
   /**
@@ -57,18 +88,22 @@
    */
   function extract(card) {
     const text = (card.textContent || "").replace(/\s+/g, " ").trim();
+    const attrs = attrText(card);
     const title =
-      card.getAttribute("aria-label") ||
-      (card.querySelector("h1,h2,h3,h4,[role='heading']") || {}).textContent ||
+      (card.getAttribute && card.getAttribute("aria-label")) ||
+      (card.querySelector && (card.querySelector("h1,h2,h3,h4,[role='heading']") || {}).textContent) ||
       text.slice(0, 80);
+
+    // Size can hide in alt/aria/title text, so search visible text AND those.
+    const sizeText = `${title} ${text} ${attrs}`;
 
     return {
       node: card,
       title: (title || "").replace(/\s+/g, " ").trim().slice(0, 120),
       text,
-      listed: UPS.parseListedUnitPrice(text),
+      listed: UPS.parseListedUnitPrice(text) || UPS.parseListedUnitPrice(attrs),
       packagePrice: UPS.parsePackagePrice(text),
-      size: UPS.parseSize(title) || UPS.parseSize(text),
+      size: UPS.parseSize(sizeText),
     };
   }
 

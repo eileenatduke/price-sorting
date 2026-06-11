@@ -123,51 +123,72 @@
   color: #9a5b00;
 }
 
-/* ---------- Group headers injected into the grid ---------- */
-.ups-decoration {
-  grid-column: 1 / -1 !important; /* span the full row in CSS grids */
-  width: 100% !important;
-  box-sizing: border-box;
-  margin: 14px 0 6px !important;
-  padding: 6px 10px !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-  font-size: 14px !important;
-  font-weight: 800 !important;
-  color: #15202b !important;
-  background: #eafaf0 !important;
-  border-left: 4px solid #06c167 !important;
-  border-radius: 4px !important;
+/* ---------- Invisible "we sorted this grid" marker ----------
+ * The extension paints NOTHING on the page itself — products show up exactly as
+ * normal, just reordered. This marker is a zero-size flag the content script
+ * uses to detect when a re-render has reverted the order. */
+.ups-sorted-marker {
+  display: none !important;
 }
 
-/* ---------- Per-item verification badges ---------- */
-.ups-badge {
-  display: inline-block;
-  position: relative;
-  z-index: 5;
-  margin: 4px 6px 0 0;
-  padding: 2px 7px;
+/* ---------- Responsive grid override ----------
+ * Uber Eats sets the product grid to a fixed list of pixel columns, so the
+ * column count never drops as the window narrows — you get a horizontal scroll.
+ * We re-express it as an auto-filling responsive grid so the browser adds/removes
+ * columns with the width (down to 1 when very narrow). `!important` beats Uber's
+ * inline track list. */
+.ups-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+  grid-auto-flow: row !important;
+}
+
+/* While the global sorted view is active, hide every LIVE Uber product card so
+ * only our snapshot grid shows. Stylesheet !important beats Uber's inline styles
+ * and survives React re-renders; our clones have no data-testid, so they stay. */
+.ups-global-active [data-testid^="store-item-"] {
+  display: none !important;
+}
+
+/* ---------- Global snapshot grid (virtualized lists) ----------
+ * Our own grid of all items in sorted order, shown in place of Uber's recycling
+ * grid. Inherits the responsive .ups-grid columns; we just add spacing/padding. */
+.ups-sorted-grid {
+  gap: 16px 12px !important;
+  padding: 8px 0 24px !important;
+  width: 100% !important;
+}
+.ups-sorted-grid .ups-cell {
+  display: block !important;
+  position: relative !important;
+  min-width: 0 !important;
+}
+.ups-sorted-grid .ups-cell > .ups-unit {
+  margin-top: 4px !important;
+}
+
+/* ---------- Unit-price line shown under each item ----------
+ * A plain text line ("$4.99/lb") that blends in with the site's own secondary
+ * text. No background/border/radius (so it can never look like a box), and
+ * pulled out of any flex/grid stretching so it stays a normal one-line label. */
+.ups-unit {
+  display: block !important;
+  align-self: flex-start !important;
+  justify-self: start !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 2px 0 0 !important;
+  padding: 0 !important;
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
-  line-height: 1.5 !important;
-  border-radius: 999px;
-  white-space: nowrap;
-  pointer-events: auto;
-}
-/* listed = solid green (came straight from Uber Eats) */
-.ups-badge--listed {
-  background: #06c167;
-  color: #ffffff;
-}
-/* computed = outlined amber (the extension derived it — sanity-check me) */
-.ups-badge--computed {
-  background: #fff5e6;
-  color: #9a5b00;
-  border: 1px dashed #d99b2b;
-}
-/* none = muted gray */
-.ups-badge--none {
-  background: #f0f2f4;
-  color: #8893a0;
-  border: 1px solid #dce1e6;
+  line-height: 1.3 !important;
+  color: #545454 !important; /* native-looking secondary gray, not a colored box */
+  white-space: nowrap !important;
+  pointer-events: none !important;
 }

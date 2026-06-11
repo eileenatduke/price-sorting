@@ -61,7 +61,19 @@
       }
     }
 
-    // FR-9: unresolved.
+    // FR-9: unresolved — record *why* so the UI can explain it (no silent drops).
+    let reason;
+    if (listed && !UNITS[listed.unitKey]) {
+      reason = `unrecognized unit “${listed.unitRaw}”`;
+    } else if (packagePrice != null && packagePrice > 0 && !size) {
+      reason = "no size/weight on item";
+    } else if (size && (packagePrice == null || packagePrice <= 0)) {
+      reason = "no package price found";
+    } else if (!listed && packagePrice == null && !size) {
+      reason = "no price or size info";
+    } else {
+      reason = "couldn’t derive unit price";
+    }
     return {
       canonicalPrice: null,
       displayPrice: null,
@@ -69,6 +81,7 @@
       canonicalUnit: null,
       source: null,
       detail: null,
+      reason,
     };
   }
 

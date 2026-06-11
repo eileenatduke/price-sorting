@@ -6,9 +6,9 @@
  */
 (function (global, factory) {
   const UPS = (global.UPS = global.UPS || {});
-  Object.assign(UPS, factory(UPS));
-  if (typeof module !== "undefined" && module.exports) module.exports = factory(UPS);
-})(typeof self !== "undefined" ? self : globalThis, function (UPS) {
+  Object.assign(UPS, factory(global, UPS));
+  if (typeof module !== "undefined" && module.exports) module.exports = factory(global, UPS);
+})(typeof self !== "undefined" ? self : globalThis, function (global, UPS) {
   const PANEL_ID = "ups-panel";
 
   function el(tag, cls, text) {
@@ -22,11 +22,12 @@
    * Create (or return existing) panel. `onSort(direction)` runs on click.
    * Returns an API: { root, setStatus, setBusy, getDirection, isPresent }.
    */
-  function createPanel(onSort) {
+  function createPanel(onSort, opts = {}) {
     let root = global.document.getElementById(PANEL_ID);
     if (root) return root.__upsApi;
 
-    let direction = UPS.DIRECTION ? UPS.DIRECTION.ASC : "asc";
+    const ASC0 = UPS.DIRECTION ? UPS.DIRECTION.ASC : "asc";
+    let direction = opts.direction || ASC0;
     let collapsed = false;
 
     root = el("div", "ups-panel");
@@ -83,6 +84,8 @@
       const DESC = UPS.DIRECTION ? UPS.DIRECTION.DESC : "desc";
       setDirection(direction === ASC ? DESC : ASC);
     });
+    // Reflect any restored direction on the toggle label.
+    setDirection(direction);
 
     sortBtn.addEventListener("click", () => onSort(direction));
 
@@ -97,6 +100,7 @@
         sortBtn.textContent = busy ? "Working…" : "Sort by unit price";
       },
       getDirection: () => direction,
+      setDirection,
       isPresent: () => global.document.getElementById(PANEL_ID) === root,
     };
     root.__upsApi = api;

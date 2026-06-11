@@ -7,9 +7,9 @@
  */
 (function (global, factory) {
   const UPS = (global.UPS = global.UPS || {});
-  Object.assign(UPS, factory(UPS));
-  if (typeof module !== "undefined" && module.exports) module.exports = factory(UPS);
-})(typeof self !== "undefined" ? self : globalThis, function (UPS) {
+  Object.assign(UPS, factory(global, UPS));
+  if (typeof module !== "undefined" && module.exports) module.exports = factory(global, UPS);
+})(typeof self !== "undefined" ? self : globalThis, function (global, UPS) {
   /**
    * Pure pipeline. `rawItems` = adapter.extract() outputs (with `.node` optional).
    * Returns { groups, stats }.
@@ -41,45 +41,81 @@
     return { groups, stats };
   }
 
-  /**
-   * Browser run: load the whole page, extract via adapter, process, render.
-   * `ctx` = { adapter, config, panel }. Returns the final stats.
-   */
-  async function run(ctx) {
-    const { adapter, config = {}, panel } = ctx;
-    const doc = global.document;
-
-    panel && panel.setBusy(true);
-    panel && panel.setStatus("Loading full page…");
-
-    const countCards = () => adapter.findCards(doc, config).length;
-    const load = await UPS.autoLoad(countCards, config.scroll);
-
-    panel && panel.setStatus("Reading items…");
-    const cards = adapter.findCards(doc, config);
-    const rawItems = cards.map((c) => adapter.extract(c));
-
-    const direction = panel ? panel.getDirection() : UPS.DIRECTION.ASC;
-    const { groups, stats } = process(rawItems, direction);
-
-    panel && panel.setStatus("Sorting…");
-    const moved = UPS.apply(groups, doc);
-    stats.moved = moved;
-
-    panel && panel.setBusy(false);
-
-    // Status feedback (FR-12) with a virtualization warning (R-1).
-    let msg =
+  function statusMsg(stats) {
+    return (
       `${stats.total} items · ${stats.sorted} sorted ` +
       `(${stats.listed} listed, ${stats.computed} computed) · ` +
-      `${stats.unresolved} no price`;
-    let kind = "ok";
-    if (load.virtualized) {
-      msg += ` ⚠ page recycles cards while scrolling — some items may be missing.`;
-      kind = "warn";
+      `${stats.unresolved} no price`
+    );
+  }
+
+  // Cache of the last GLOBAL (snapshot) sort lives on UPS._lastGlobal (tagged with
+  // its URL) so the content script can invalidate it on store/category changes,
+  // and a resize can re-show the same grid cheaply without re-scanning.
+
+  function inPlace(adapter, config, direction, doc) {
+    const cards = adapter.findCards(doc, config);
+    const rawItems = cards.map((c) => adapter.extract(c));
+    const { groups, stats } = process(rawItems, direction);
+    stats.moved = UPS.apply(groups, doc);
+    return { groups, stats };
+  }
+
+  /**
+   * Browser run: scan the page, then either reorder the live grid in place (the
+   * whole list fits in the DOM) or — when Uber virtualizes/recycles the cards —
+   * snapshot every item and show our own globally-sorted grid (global.js).
+   * `ctx` = { adapter, config, panel, noScroll }. Returns { stats, mode }.
+   */
+  async function run(ctx) {
+    const { adapter, config = {}, panel, noScroll = false } = ctx;
+    const doc = global.document;
+    const direction = panel ? panel.getDirection() : UPS.DIRECTION.ASC;
+
+    panel && panel.setBusy(true);
+
+    // Cheap re-apply after a resize/re-render (no re-scan) — only reuse the cache
+    // for the SAME page, never across a category/store change.
+    if (noScroll) {
+      const lg = UPS._lastGlobal;
+      if (lg && lg.url === global.location.href) {
+        const liveGrid = UPS.findGrid(adapter.findCards(doc, config)).container;
+        UPS.showSorted(lg.groups, doc, liveGrid);
+        panel && panel.setBusy(false);
+        return { stats: lg.stats, mode: "global" };
+      }
+      const { stats } = inPlace(adapter, config, direction, doc);
+      panel && panel.setBusy(false);
+      panel && panel.setStatus(statusMsg(stats), "ok");
+      return { stats, mode: "inplace" };
     }
-    panel && panel.setStatus(msg, kind);
-    return { stats, load };
+
+    // Full run: scan the whole list once, capturing a snapshot of every card.
+    panel && panel.setStatus("Scanning all items…");
+    const { byId, virtualized } = await UPS.collectAll(adapter, config, panel);
+
+    if (virtualized) {
+      // Global mode: build our own sorted grid from the snapshot (beats recycling).
+      const items = [...byId.entries()].map(([testid, node]) => {
+        const ex = adapter.extract(node);
+        return { testid, node, listed: ex.listed, packagePrice: ex.packagePrice, size: ex.size };
+      });
+      const { groups, stats } = process(items, direction);
+      const liveGrid = UPS.findGrid(adapter.findCards(doc, config)).container;
+      stats.moved = UPS.showSorted(groups, doc, liveGrid);
+      UPS._lastGlobal = { groups, stats, url: global.location.href };
+      panel && panel.setBusy(false);
+      panel && panel.setStatus(statusMsg(stats) + " · full sorted view", "ok");
+      return { stats, mode: "global" };
+    }
+
+    // Not virtualized — reorder the live cards in place (keeps them interactive).
+    UPS._lastGlobal = null;
+    panel && panel.setStatus("Sorting…");
+    const { stats } = inPlace(adapter, config, direction, doc);
+    panel && panel.setBusy(false);
+    panel && panel.setStatus(statusMsg(stats), "ok");
+    return { stats, mode: "inplace" };
   }
 
   return { process, run };

@@ -6,9 +6,9 @@
  */
 (function (global, factory) {
   const UPS = (global.UPS = global.UPS || {});
-  Object.assign(UPS, factory(UPS));
-  if (typeof module !== "undefined" && module.exports) module.exports = factory(UPS);
-})(typeof self !== "undefined" ? self : globalThis, function (UPS) {
+  Object.assign(UPS, factory(global, UPS));
+  if (typeof module !== "undefined" && module.exports) module.exports = factory(global, UPS);
+})(typeof self !== "undefined" ? self : globalThis, function (global, UPS) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // Tunable scroll pacing (NFR-2). step = px per tick, delay = ms between ticks.
