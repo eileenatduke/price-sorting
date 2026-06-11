@@ -36,6 +36,15 @@
     "ig"
   );
 
+  // "N-pack of per-item weight": "6 ct • 1.06 oz", "12 pack 1.06 oz", "2 x 12 oz".
+  // The per-item weight must come IMMEDIATELY after the count (only spaces, a
+  // bullet, or a comma between) so we multiply genuine per-item specs but NOT a
+  // total like "(25 oz, 30 ct) 750 oz", where ")" breaks the adjacency.
+  const PACK_RE = new RegExp(
+    `(${NUM})\\s*(?:ct|cnt|count|pk|packs?|pcs?|pieces?|ea|each|x|×)\\b[\\s•·,]*(${NUM})\\s*(${UNIT_PATTERN})\\b`,
+    "i"
+  );
+
   // Coupon / discount amounts that are NOT the item's price, e.g.
   // "Claim $0.25 off", "$1 off", "save $2", "get $0.50 back". Stripped before
   // we read the package price so a coupon can't be mistaken for a cheap price.
@@ -96,6 +105,23 @@
    */
   function parseSize(text) {
     if (!text) return null;
+
+    // "N ct • W oz" — N items of W (weight/volume) each → total = N × W.
+    const pack = PACK_RE.exec(text);
+    if (pack) {
+      const n = toNumber(pack[1]);
+      const per = toNumber(pack[2]);
+      const unitKey = resolveUnit(pack[3]);
+      const u = unitKey && UPS.UNITS[unitKey];
+      if (
+        u &&
+        (u.family === UPS.FAMILY.WEIGHT || u.family === UPS.FAMILY.VOLUME) &&
+        isFinite(n) && n > 0 && isFinite(per) && per > 0
+      ) {
+        return { qty: n * per, unitKey, unitRaw: pack[3] };
+      }
+    }
+
     SIZE_RE.lastIndex = 0;
     let m;
     const cands = [];
