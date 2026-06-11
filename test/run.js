@@ -119,6 +119,11 @@ ok("package price ignores listed", (() => {
   return approx(p, 6.0);
 })(), UPS.parsePackagePrice("Apples 3 lb bag $6.00 ($3.49/lb)"));
 ok("package price picks lowest (sale)", approx(UPS.parsePackagePrice("$6.00 $8.00"), 6.0));
+ok("package price ignores coupon ('Claim $0.25 off')", (() => {
+  const p = UPS.parsePackagePrice("Hostess Coffee Cakes (20.3 oz) $6.59 Claim $0.25 off");
+  return approx(p, 6.59);
+})(), UPS.parsePackagePrice("Hostess Coffee Cakes (20.3 oz) $6.59 Claim $0.25 off"));
+ok("package price ignores '$1 off'", approx(UPS.parsePackagePrice("Donuts $3.39 $1 off"), 3.39));
 ok("size '3 lb'", (() => {
   const s = UPS.parseSize("Bananas, 3 lb");
   return s && approx(s.qty, 3) && s.unitKey === "lb";
@@ -135,6 +140,16 @@ ok("size '12 ct'", (() => {
   const s = UPS.parseSize("Eggs 12 ct");
   return s && approx(s.qty, 12) && s.unitKey === "each";
 })());
+ok("conflicting sizes: ignores inflated 'lbs' typo, uses real oz", (() => {
+  // "(20.5 lbs)" is a name typo; "20.5 oz" is the real size — pick the smaller.
+  const s = UPS.parseSize("Bread (20.5 lbs) 20.5 oz");
+  return s && approx(s.qty, 20.5) && s.unitKey === "oz";
+})(), UPS.parseSize("Bread (20.5 lbs) 20.5 oz"));
+ok("conflicting sizes: ignores bogus inflated size field", (() => {
+  // Name "25 oz" is real; standalone "750 oz" is bad data — pick the smaller.
+  const s = UPS.parseSize("Tortillas (25 oz, 30 ct) 750 oz");
+  return s && approx(s.qty, 25) && s.unitKey === "oz";
+})(), UPS.parseSize("Tortillas (25 oz, 30 ct) 750 oz"));
 
 /* ---------------- adapter extraction ---------------- */
 section("adapter (ubereats) extraction");

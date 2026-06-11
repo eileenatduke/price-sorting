@@ -36,6 +36,14 @@
     "ig"
   );
 
+  // Coupon / discount amounts that are NOT the item's price, e.g.
+  // "Claim $0.25 off", "$1 off", "save $2", "get $0.50 back". Stripped before
+  // we read the package price so a coupon can't be mistaken for a cheap price.
+  const DISCOUNT_RE = new RegExp(
+    `\\b(?:claim|save|get|earn|coupon)\\s*\\$\\s*${NUM}|\\$\\s*${NUM}\\s*(?:off|back|cash\\s*back|coupon)\\b`,
+    "ig"
+  );
+
   function toNumber(s) {
     if (s == null) return NaN;
     return parseFloat(String(s).replace(/,/g, ""));
@@ -58,11 +66,11 @@
    */
   function parsePackagePrice(text) {
     if (!text) return null;
-    // Blank out any listed unit prices so we don't pick them up as package price.
-    const cleaned = text.replace(
-      new RegExp(`\\$\\s*${NUM}\\s*(?:\\/|per)\\s*(?:${UNIT_PATTERN})\\b`, "ig"),
-      " "
-    );
+    // Blank out listed unit prices AND coupon/discount amounts so neither is
+    // mistaken for the package price.
+    const cleaned = text
+      .replace(new RegExp(`\\$\\s*${NUM}\\s*(?:\\/|per)\\s*(?:${UNIT_PATTERN})\\b`, "ig"), " ")
+      .replace(DISCOUNT_RE, " ");
     let m;
     const prices = [];
     PRICE_RE.lastIndex = 0;
@@ -77,20 +85,40 @@
   }
 
   /**
-   * Parse the first plausible size from free text (title/description).
-   * Returns {qty, unitKey, unitRaw} or null. Honors "N x M unit" multipliers.
+   * Parse the best size from free text (title/description). Honors "N x M unit"
+   * multipliers. Returns {qty, unitKey, unitRaw} or null.
+   *
+   * A card can carry conflicting sizes — a typo in the name ("20.5 lbs" instead
+   * of "20.5 oz") or a bogus size field ("750 oz" for tortillas) — alongside the
+   * real one. The error always *inflates* the size, so among weight/volume
+   * candidates we pick the SMALLEST canonical size (preferring weight, then
+   * volume, then count). That self-corrects both failure modes.
    */
   function parseSize(text) {
     if (!text) return null;
     SIZE_RE.lastIndex = 0;
     let m;
+    const cands = [];
     while ((m = SIZE_RE.exec(text)) !== null) {
       const mult = m[1] != null ? toNumber(m[1]) : 1;
       const base = toNumber(m[2]);
       const unitKey = resolveUnit(m[3]);
       if (!unitKey || !isFinite(base) || base <= 0) continue;
+      const u = UPS.UNITS[unitKey];
+      if (!u) continue;
       const qty = (isFinite(mult) && mult > 0 ? mult : 1) * base;
-      return { qty, unitKey, unitRaw: m[3] };
+      cands.push({ qty, unitKey, unitRaw: m[3], family: u.family, canonical: qty / u.factor });
+    }
+    if (!cands.length) return null;
+
+    const order = [UPS.FAMILY.WEIGHT, UPS.FAMILY.VOLUME, UPS.FAMILY.COUNT];
+    for (const fam of order) {
+      const inFam = cands.filter((c) => c.family === fam);
+      if (inFam.length) {
+        inFam.sort((a, b) => a.canonical - b.canonical); // smallest real size wins
+        const best = inFam[0];
+        return { qty: best.qty, unitKey: best.unitKey, unitRaw: best.unitRaw };
+      }
     }
     return null;
   }
