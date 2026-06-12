@@ -81,23 +81,45 @@
   // of detected items carry a parseable size or a listed "$/unit" price. A
   // positive result is cached per URL (negative is re-checked cheaply as the
   // page loads, so a still-loading grocery store isn't locked out).
-  let groceryCache = { url: null, value: false, count: 0 };
+  // Grocery-ness is a property of the STORE, not the page: "/store/<slug>/…"
+  // identifies the store, and its category/search pages keep that prefix (search
+  // just adds ?storeSearchQuery=…). So once a store is confirmed grocery we
+  // remember it by that key and keep the panel on all its pages — including
+  // search results, where item sizes often aren't shown. A restaurant/florist
+  // has a different slug, so it never inherits this.
+  function storeKey() {
+    const parts = location.pathname.split("/").filter(Boolean); // ["store","<slug>",…]
+    if (parts[0] === "store" && parts[1]) return "/store/" + parts[1];
+    return location.pathname; // non-store pages (collection-page, etc.)
+  }
+  const GROCERY_KEY = "ups:groceryStore";
+  let groceryStore = (function () {
+    try {
+      return window.sessionStorage.getItem(GROCERY_KEY);
+    } catch (_) {
+      return null;
+    }
+  })();
+  function rememberGrocery(key) {
+    groceryStore = key;
+    try {
+      window.sessionStorage.setItem(GROCERY_KEY, key);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   function looksGrocery() {
-    const url = location.href;
+    const key = storeKey();
+    if (groceryStore === key) return true; // already confirmed grocery for this store
+
     let cards;
     try {
       cards = adapter.findCards(document, getConfig());
     } catch (_) {
       return false;
     }
-    const n = cards.length;
-    // Reuse the verdict for this URL unless a lot more items have since loaded
-    // (which could change the answer) — keeps a settled restaurant from being
-    // re-scanned every tick, while a still-loading grocery store gets re-judged.
-    if (groceryCache.url === url && n <= groceryCache.count * 1.5 + 5) {
-      return groceryCache.value;
-    }
-    if (n < 8) return false; // too few / still loading — don't cache yet
+    if (cards.length < 8) return false; // too few / still loading — judge later
 
     const sample = cards.slice(0, 40);
     let sized = 0;
@@ -110,8 +132,8 @@
       }
     }
     const value = sized / sample.length >= 0.4;
-    groceryCache = { url, value, count: n };
-    if (!value) console.info(TAG, "not a grocery-type store — sorter disabled here.");
+    if (value) rememberGrocery(key);
+    else console.info(TAG, "not a grocery-type store — sorter disabled here.");
     return value;
   }
 
@@ -161,14 +183,17 @@
 
   // ---- Navigation: re-judge the new store/category from scratch ------------
   let lastHref = location.href;
+  let lastKey = storeKey();
   function checkUrl() {
-    if (location.href !== lastHref) {
-      lastHref = location.href;
-      groceryCache = { url: null, value: false }; // re-evaluate store type
-      if (UPS.clearSorted) UPS.clearSorted(document); // drop stale snapshot
-      removePanel(); // hide until the new page is judged grocery-or-not
-      scheduleEvaluate({ scroll: true });
-    }
+    if (location.href === lastHref) return;
+    lastHref = location.href;
+    const keyChanged = storeKey() !== lastKey;
+    lastKey = storeKey();
+    if (UPS.clearSorted) UPS.clearSorted(document); // new page = new items, drop stale sort
+    // Only tear the panel down when the STORE changes (could be non-grocery);
+    // a same-store search/category keeps it and just re-sorts the new items.
+    if (keyChanged) removePanel();
+    scheduleEvaluate({ scroll: true });
   }
 
   // ---- Triggers -----------------------------------------------------------
