@@ -12,10 +12,10 @@
 
   // Stable display order of groups, with the unresolved bucket last (FR-9).
   const GROUP_ORDER = [
-    { key: FAMILY.WEIGHT, label: "By weight — $/lb" },
-    { key: FAMILY.VOLUME, label: "By volume — $/fl oz" },
-    { key: FAMILY.COUNT, label: "By count — $/each" },
-    { key: "__unresolved__", label: "No unit price found" },
+    { key: FAMILY.WEIGHT, label: "Price per pound ($/lb)" },
+    { key: FAMILY.VOLUME, label: "Price per fluid ounce ($/fl oz)" },
+    { key: FAMILY.COUNT, label: "Price per item ($/each)" },
+    { key: "__unresolved__", label: "No unit price available" },
   ];
 
   /**

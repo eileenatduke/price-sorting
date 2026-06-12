@@ -21,7 +21,7 @@
   const GRID_CLASS = "ups-grid"; // makes the reordered grid's columns responsive
   // Our marker + unit lines + any visible decorations from older builds; cleared
   // every run so nothing can linger or duplicate after a re-sort/upgrade.
-  const STALE_SELECTOR = ".ups-sorted-marker, .ups-unit, .ups-decoration, .ups-badge";
+  const STALE_SELECTOR = ".ups-sorted-marker, .ups-unit, .ups-cat-header, .ups-decoration, .ups-badge";
 
   /** Remove our marker + unit lines (and any legacy decorations) for a clean re-run. */
   function clearDecorations(doc = global.document) {
@@ -123,8 +123,18 @@
     const placed = new Set();
     const frag = doc.createDocumentFragment();
     for (const group of groups) {
-      for (const item of group.items) {
-        if (!item.node || !item.node.isConnected) continue;
+      const items = group.items.filter(
+        (it) => it.node && it.node.isConnected && cellOf.get(it.node)
+      );
+      if (!items.length) continue;
+
+      // Full-width category header (e.g. "Price per pound ($/lb)").
+      const header = doc.createElement("div");
+      header.className = "ups-cat-header";
+      header.textContent = group.label + "  (" + items.length + ")";
+      frag.appendChild(header);
+
+      for (const item of items) {
         const cell = cellOf.get(item.node);
         if (cell && !placed.has(cell)) {
           frag.appendChild(cell); // moves the whole grid cell into final order

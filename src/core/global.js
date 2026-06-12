@@ -86,8 +86,16 @@
 
     let count = 0;
     for (const group of groups) {
-      for (const item of group.items) {
-        if (!item.node) continue;
+      const items = group.items.filter((it) => it.node);
+      if (!items.length) continue;
+
+      // Full-width category header (e.g. "Price per pound ($/lb)").
+      const header = doc.createElement("div");
+      header.className = "ups-cat-header";
+      header.textContent = group.label + "  (" + items.length + ")";
+      our.appendChild(header);
+
+      for (const item of items) {
         const cell = doc.createElement("div");
         cell.className = "ups-cell";
         cell.appendChild(item.node); // the clone

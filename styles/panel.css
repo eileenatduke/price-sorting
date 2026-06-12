@@ -131,6 +131,24 @@
   display: none !important;
 }
 
+/* ---------- Category headers (one per unit group) ----------
+ * A clean, full-width section title — plain text with a subtle underline, no
+ * colored box — that spans the whole grid row before each unit group. */
+.ups-cat-header {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 22px 0 10px !important;
+  padding: 0 0 6px !important;
+  border-bottom: 2px solid #e2e4e7 !important;
+  background: none !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  line-height: 1.3 !important;
+  color: #1a1a1a !important;
+}
+
 /* ---------- Responsive grid override ----------
  * Uber Eats sets the product grid to a fixed list of pixel columns, so the
  * column count never drops as the window narrows — you get a horizontal scroll.
