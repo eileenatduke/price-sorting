@@ -54,8 +54,10 @@
     let bestGap = Infinity;
     for (const { t, r: nr } of labels) {
       const gap = nr.top - r.bottom;
-      if (gap < -8 || gap > 140) continue; // must sit just under the card
-      if (nr.left < r.left - 14 || nr.right > r.right + 14) continue; // horizontally within
+      if (gap < -30 || gap > 220) continue; // sits just under the card (allow name/price between)
+      // Horizontally OVERLAPS the card — the store-item box is often just the
+      // (narrow) image, while the size label is in the wider text column.
+      if (nr.right < r.left + 4 || nr.left > r.right - 4) continue;
       if (gap < bestGap) { bestGap = gap; best = t; }
     }
     return best;
