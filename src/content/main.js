@@ -1,11 +1,10 @@
 /*
  * main.js — Content-script entry (PRD FR-1/14). Browser-only.
  *
- * Wires the matching adapter to the panel + engine, and keeps BOTH the panel
- * and the *sort result* alive for the lifetime of the tab: once the user sorts,
- * the extension re-applies automatically across Uber Eats' SPA navigation,
- * React re-renders, and window resizes. State lives in sessionStorage, so it
- * survives reloads and category changes but resets when the tab is closed.
+ * Wires the matching adapter to the panel + engine, keeps the sort sticky for
+ * the tab (sessionStorage), and — crucially — only activates on grocery-type
+ * stores where items have weights/sizes. Restaurants, florists, and anything
+ * else that can't be sorted by unit price are left untouched.
  */
 (function () {
   const TAG = "[Unit Price Sorter]";
@@ -16,21 +15,17 @@
   }
   console.info(TAG, "content script loaded on", location.href);
 
-  // Optional per-site config override (FR-3 cardSelector, NFR-5).
   function getConfig() {
     return Object.assign({}, window.__UPS_CONFIG__ || {});
   }
 
   const adapter = UPS.getAdapter(location.href);
   if (!adapter) {
-    console.warn(TAG, "no adapter matched this URL — panel not injected.");
-    return; // not a supported platform
+    console.warn(TAG, "no adapter matched this URL.");
+    return;
   }
-  console.info(TAG, "adapter:", adapter.id, "— injecting panel.");
 
-  // ---- Tab-scoped sticky state -------------------------------------------
-  // sessionStorage is per-tab + per-origin and cleared when the tab closes —
-  // exactly the requested lifetime ("only reset when I exit the whole tab").
+  // ---- Tab-scoped sticky state (cleared only when the tab closes) ----------
   const STORAGE_KEY = "ups:sortState";
   function loadState() {
     try {
@@ -50,8 +45,6 @@
 
   let running = false;
 
-  // Run a sort. `noScroll` re-applies to already-loaded items (resize/re-render)
-  // without the full auto-scroll; full runs (click, navigation) load the page.
   async function runSort({ noScroll = false } = {}) {
     if (running) return;
     running = true;
@@ -69,7 +62,6 @@
     }
   }
 
-  // Panel button → explicit, full sort (also arms stickiness).
   function onSort() {
     return runSort({ noScroll: false });
   }
@@ -77,12 +69,52 @@
   function ensurePanel() {
     if (!UPS.panelPresent()) UPS.createPanel(onSort, { direction: state.direction });
   }
-  ensurePanel();
+  function removePanel() {
+    const el = document.getElementById(UPS.PANEL_ID);
+    if (el) el.remove();
+  }
 
-  // ---- Sticky re-sorting --------------------------------------------------
-  // The grid is "sorted" iff our invisible marker is in the DOM. A resize, React
-  // re-render, or SPA category change wipes it; when that happens and sorting is
-  // armed, re-apply (debounced so the page can settle first).
+  // ---- Grocery gate -------------------------------------------------------
+  // Per-unit sorting only makes sense where items have weights/sizes (grocery,
+  // produce, meat, packaged foods). Restaurants, florists, etc. sell unitless
+  // items, so we don't activate there at all. Heuristic: a meaningful fraction
+  // of detected items carry a parseable size or a listed "$/unit" price. A
+  // positive result is cached per URL (negative is re-checked cheaply as the
+  // page loads, so a still-loading grocery store isn't locked out).
+  let groceryCache = { url: null, value: false, count: 0 };
+  function looksGrocery() {
+    const url = location.href;
+    let cards;
+    try {
+      cards = adapter.findCards(document, getConfig());
+    } catch (_) {
+      return false;
+    }
+    const n = cards.length;
+    // Reuse the verdict for this URL unless a lot more items have since loaded
+    // (which could change the answer) — keeps a settled restaurant from being
+    // re-scanned every tick, while a still-loading grocery store gets re-judged.
+    if (groceryCache.url === url && n <= groceryCache.count * 1.5 + 5) {
+      return groceryCache.value;
+    }
+    if (n < 8) return false; // too few / still loading — don't cache yet
+
+    const sample = cards.slice(0, 40);
+    let sized = 0;
+    for (const c of sample) {
+      try {
+        const ex = adapter.extract(c);
+        if (ex.listed || ex.size) sized++;
+      } catch (_) {
+        /* ignore a bad card */
+      }
+    }
+    const value = sized / sample.length >= 0.4;
+    groceryCache = { url, value, count: n };
+    if (!value) console.info(TAG, "not a grocery-type store — sorter disabled here.");
+    return value;
+  }
+
   function isSorted() {
     // In-place mode drops an invisible marker; global mode shows our sorted grid.
     return !!document.querySelector("." + UPS.MARKER_CLASS + ", ." + UPS.SORTED_GRID_CLASS);
@@ -95,52 +127,62 @@
     }
   }
 
-  let debounce = null;
-  let pendingScroll = false; // if any pending trigger wants a full page load
-  function scheduleResort({ scroll = false } = {}) {
-    if (!state.active || running) return;
+  // ---- Single debounced evaluator: gate, then (re)sort if armed ------------
+  let evalTimer = null;
+  let pendingScroll = false;
+  function scheduleEvaluate({ scroll = false } = {}) {
     pendingScroll = pendingScroll || scroll;
-    clearTimeout(debounce);
-    debounce = setTimeout(() => {
-      if (!state.active || running) return;
-      if (isSorted()) {
-        pendingScroll = false;
-        return; // still sorted — nothing to do
+    clearTimeout(evalTimer);
+    evalTimer = setTimeout(runEvaluate, 400);
+  }
+  function runEvaluate() {
+    if (running) return;
+
+    if (!looksGrocery()) {
+      // Not unit-priceable — make sure nothing of ours is on the page.
+      if (UPS.panelPresent() || isSorted()) {
+        removePanel();
+        if (UPS.clearSorted) UPS.clearSorted(document);
       }
-      if (!hasCards()) return; // content not ready yet; a later trigger retries
+      pendingScroll = false;
+      return;
+    }
+
+    // Grocery store: show the panel; keep it sorted if the user armed sorting.
+    ensurePanel();
+    if (state.active && !isSorted() && hasCards()) {
       const noScroll = !pendingScroll;
       pendingScroll = false;
       runSort({ noScroll });
-    }, 400);
+    } else {
+      pendingScroll = false;
+    }
   }
 
-  // FR-14: re-inject the panel and re-assert the sort on any DOM change. Also
-  // catch store/category navigation here, since a content script can't reliably
-  // intercept the page's own pushState — location.href is the reliable signal.
+  // ---- Navigation: re-judge the new store/category from scratch ------------
+  let lastHref = location.href;
+  function checkUrl() {
+    if (location.href !== lastHref) {
+      lastHref = location.href;
+      groceryCache = { url: null, value: false }; // re-evaluate store type
+      if (UPS.clearSorted) UPS.clearSorted(document); // drop stale snapshot
+      removePanel(); // hide until the new page is judged grocery-or-not
+      scheduleEvaluate({ scroll: true });
+    }
+  }
+
+  // ---- Triggers -----------------------------------------------------------
+  // A content script can't reliably intercept the page's pushState, so we watch
+  // location.href inside the MutationObserver (fires during navigation) too.
   const mo = new MutationObserver(() => {
     if (running) return; // ignore our own mutations
-    checkUrl(); // store/category change → clear stale view + re-scan
-    ensurePanel();
-    scheduleResort({ scroll: false }); // re-render/resize: items already loaded
+    checkUrl();
+    scheduleEvaluate({ scroll: false });
   });
   mo.observe(document.documentElement, { childList: true, subtree: true });
 
-  // Resizing (full-screen ⇆ windowed) re-lays-out the grid and drops our order.
-  window.addEventListener("resize", () => scheduleResort({ scroll: false }));
+  window.addEventListener("resize", () => scheduleEvaluate({ scroll: false }));
 
-  // SPA route changes (store/category x → y) — drop the stale sorted view and
-  // re-scan the new page from scratch so it never shows the previous category.
-  let lastHref = location.href;
-  const checkUrl = () => {
-    if (location.href !== lastHref) {
-      lastHref = location.href;
-      if (UPS.clearSorted) UPS.clearSorted(document); // invalidate old snapshot + un-hide new cards
-      if (UPS.getAdapter(location.href)) {
-        ensurePanel();
-        scheduleResort({ scroll: true });
-      }
-    }
-  };
   for (const m of ["pushState", "replaceState"]) {
     const orig = history[m];
     history[m] = function () {
@@ -151,6 +193,6 @@
   }
   window.addEventListener("popstate", checkUrl);
 
-  // On (re)load, if sorting was armed in this tab, resume it automatically.
-  if (state.active) scheduleResort({ scroll: true });
+  // Initial evaluation (full sort if sorting was already armed in this tab).
+  scheduleEvaluate({ scroll: !!state.active });
 })();
