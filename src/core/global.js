@@ -24,6 +24,43 @@
   const ACTIVE_CLASS = "ups-global-active";
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  // Does a string contain a size token at all?
+  const SIZE_HINT = /\d+(?:[.,]\d+)?\s*(?:fl\s*oz|oz|ounce|lb|lbs|pound|kg|g|ml|l|gal|qt|pt|ct|count|pk|pack|each|ea)\b/i;
+  // Is a string ENTIRELY a size (a standalone size label, e.g. "23 fl oz")?
+  const PURE_SIZE = /^\s*\d+(?:[.,]\d+)?\s*(?:fl\s*oz|fluid\s*ounces?|oz|ounces?|lbs?|pounds?|kg|g|ml|l|gal|qt|pt|ct|count|pk|packs?|each|ea)(?:\s*[•·,]\s*\d+(?:[.,]\d+)?\s*[a-z][a-z .]*)?\s*$/i;
+
+  // Collect every standalone size label currently on screen, with its position.
+  function collectSizeLabels(doc) {
+    const labels = [];
+    doc.querySelectorAll("div, span, p").forEach((n) => {
+      if (n.firstElementChild) return; // leaf elements only
+      const t = (n.textContent || "").trim();
+      if (!t || t.length > 24 || !PURE_SIZE.test(t)) return;
+      const r = n.getBoundingClientRect();
+      if (r.width) labels.push({ t, r });
+    });
+    return labels;
+  }
+
+  // Some Uber cards (sponsored / certain layouts) render the size as a label
+  // positioned visually UNDER the card but not inside its DOM. Find it by
+  // geometry: the closest standalone size label directly below the card and
+  // horizontally within it.
+  function sizeBelow(card, labels) {
+    if (!card.getBoundingClientRect) return null;
+    const r = card.getBoundingClientRect();
+    if (!r.width) return null;
+    let best = null;
+    let bestGap = Infinity;
+    for (const { t, r: nr } of labels) {
+      const gap = nr.top - r.bottom;
+      if (gap < -8 || gap > 140) continue; // must sit just under the card
+      if (nr.left < r.left - 14 || nr.right > r.right + 14) continue; // horizontally within
+      if (gap < bestGap) { bestGap = gap; best = t; }
+    }
+    return best;
+  }
+
   /**
    * Scroll the whole list once, cloning every card (deduped by data-testid).
    * Returns { byId: Map<id, cloneNode>, virtualized: bool }.
@@ -40,13 +77,33 @@
     let lastCount = -1;
 
     const capture = () => {
-      for (const el of adapter.findCards(doc, config)) {
+      const cards = adapter.findCards(doc, config);
+      let labels = null; // computed lazily, only when a card lacks an in-DOM size
+      for (const el of cards) {
         const id = el.getAttribute("data-testid") || "ups-" + (el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 48);
+        const existing = byId.get(id);
+        if (existing && existing.__upsSized) continue; // already captured WITH a size
+
+        const elHasSize = SIZE_HINT.test(el.textContent || "");
+        let injected = null;
+        if (!elHasSize) {
+          if (!labels) labels = collectSizeLabels(doc);
+          injected = sizeBelow(el, labels); // size rendered just under the card
+        }
+
         const clone = el.cloneNode(true);
         // Strip data-testid from the clone so findCards never re-detects our
         // snapshot as a live card (the id stays as the Map key for click-through).
         clone.removeAttribute("data-testid");
         clone.querySelectorAll("[data-testid]").forEach((n) => n.removeAttribute("data-testid"));
+        if (injected) {
+          // Carry the geometric size into the clone (hidden) so extract() sees it.
+          const tag = doc.createElement("span");
+          tag.textContent = " " + injected;
+          tag.style.display = "none";
+          clone.appendChild(tag);
+        }
+        clone.__upsSized = elHasSize || !!injected;
         byId.set(id, clone);
       }
     };
