@@ -58,6 +58,21 @@
   }
 
   /**
+   * `textContent` concatenates adjacent elements with NO separator, gluing
+   * tokens together (e.g. "Coconut Oil23 fl ozSponsored"). Since our size/price
+   * regexes use word boundaries, a glued unit ("ozSponsored") never matches.
+   * Re-insert spaces at letter/number/word-start boundaries so the real tokens
+   * are parseable again. Purely additive spacing — never changes the numbers.
+   */
+  function deglue(s) {
+    return String(s || "")
+      .replace(/([a-z])([A-Z])/g, "$1 $2") // ozSponsored -> oz Sponsored
+      .replace(/([A-Za-z])([A-Z][a-z])/g, "$1 $2") // LMany -> L Many
+      .replace(/([A-Za-z])(\d)/g, "$1 $2") // Oil23 -> Oil 23
+      .replace(/(\d)([A-Za-z])/g, "$1 $2"); // 16oz -> 16 oz
+  }
+
+  /**
    * Gather machine-readable text that the *visible* text may omit — image `alt`,
    * `aria-label` and `title` attributes on the card and its descendants. Uber
    * Eats frequently stashes the net weight (e.g. "20 oz (1.25 lb)") in the
@@ -87,8 +102,8 @@
    * Returns { node, title, text, listed, packagePrice, size }.
    */
   function extract(card) {
-    const text = (card.textContent || "").replace(/\s+/g, " ").trim();
-    const attrs = attrText(card);
+    const text = deglue(card.textContent || "").replace(/\s+/g, " ").trim();
+    const attrs = deglue(attrText(card));
     const title =
       (card.getAttribute && card.getAttribute("aria-label")) ||
       (card.querySelector && (card.querySelector("h1,h2,h3,h4,[role='heading']") || {}).textContent) ||

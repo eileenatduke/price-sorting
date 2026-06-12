@@ -209,6 +209,17 @@ section("adapter (ubereats) extraction");
   ok("extract finds listed", raw.listed && raw.listed.unitKey === "lb", raw.listed);
   ok("extract finds package price", approx(raw.packagePrice, 6.0), raw.packagePrice);
   ok("extract finds size", raw.size && approx(raw.size.qty, 3), raw.size);
+
+  // textContent glues adjacent elements ("Oil23 fl ozSponsored") — extract must
+  // de-glue so the size/price still parse.
+  const gluedCard = {
+    textContent: "Quick viewPlus small$21.19Nutiva Organic Virgin Coconut Oil23 fl ozSponsored",
+    getAttribute: () => null,
+    querySelector: () => null,
+  };
+  const g = adapter.extract(gluedCard);
+  ok("extract de-glues size '23 fl ozSponsored'", g.size && g.size.unitKey === "floz" && approx(g.size.qty, 23), g.size);
+  ok("extract de-glues package price '$21.19Nutiva'", approx(g.packagePrice, 21.19), g.packagePrice);
 }
 
 /* ---------------- grouping + sorting + engine ---------------- */
