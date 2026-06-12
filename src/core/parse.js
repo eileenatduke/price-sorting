@@ -36,15 +36,6 @@
     "ig"
   );
 
-  // "N-pack of per-item weight": "6 ct • 1.06 oz", "12 pack 1.06 oz", "2 x 12 oz".
-  // The per-item weight must come IMMEDIATELY after the count (only spaces, a
-  // bullet, or a comma between) so we multiply genuine per-item specs but NOT a
-  // total like "(25 oz, 30 ct) 750 oz", where ")" breaks the adjacency.
-  const PACK_RE = new RegExp(
-    `(${NUM})\\s*(?:ct|cnt|count|pk|packs?|pcs?|pieces?|ea|each|x|×)\\b[\\s•·,]*(${NUM})\\s*(${UNIT_PATTERN})\\b`,
-    "i"
-  );
-
   // Coupon / discount amounts that are NOT the item's price, e.g.
   // "Claim $0.25 off", "$1 off", "save $2", "get $0.50 back". Stripped before
   // we read the package price so a coupon can't be mistaken for a cheap price.
@@ -106,32 +97,11 @@
   function parseSize(text) {
     if (!text) return null;
 
-    // "N ct • W oz" can mean N items of W *each* (multiply to get the box total).
-    // But the SAME shape appears when W is already the package TOTAL ("12 ct,
-    // 14 oz" = a 14 oz box of 12). The two are indistinguishable in text, so we
-    // only multiply when W is small enough to be a single serving; a larger W is
-    // the total and is used directly by the candidate logic below. (Explicit
-    // "2 x 12 oz" multipliers are still handled there via SIZE_RE.)
-    const PER_ITEM_MAX = {
-      [UPS.FAMILY.WEIGHT]: 0.25, // lb (~4 oz): a single bar/waffle/pouch/cup
-      [UPS.FAMILY.VOLUME]: 20, // fl oz: a single can/bottle
-    };
-    const pack = PACK_RE.exec(text);
-    if (pack) {
-      const n = toNumber(pack[1]);
-      const per = toNumber(pack[2]);
-      const unitKey = resolveUnit(pack[3]);
-      const u = unitKey && UPS.UNITS[unitKey];
-      if (
-        u &&
-        (u.family === UPS.FAMILY.WEIGHT || u.family === UPS.FAMILY.VOLUME) &&
-        isFinite(n) && n > 0 && isFinite(per) && per > 0 &&
-        per / u.factor <= PER_ITEM_MAX[u.family]
-      ) {
-        return { qty: n * per, unitKey, unitRaw: pack[3] };
-      }
-    }
-
+    // NOTE: when a card lists a count AND a weight ("10 ct • 1.05 oz"), we treat
+    // the weight as the package TOTAL and ignore the count — never multiply.
+    // A listed weight like "1.05 oz" for a 10-pack is the net weight, not the
+    // per-item weight, and guessing per-item wrongly inflates the size. (Explicit
+    // "2 x 12 oz" multipliers are the one exception, handled by SIZE_RE below.)
     SIZE_RE.lastIndex = 0;
     let m;
     const cands = [];

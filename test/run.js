@@ -150,10 +150,15 @@ ok("conflicting sizes: ignores bogus inflated size field", (() => {
   const s = UPS.parseSize("Tortillas (25 oz, 30 ct) 750 oz");
   return s && approx(s.qty, 25) && s.unitKey === "oz";
 })(), UPS.parseSize("Tortillas (25 oz, 30 ct) 750 oz"));
-ok("pack of per-item weight: '6 ct • 1.06 oz' -> 6.36 oz", (() => {
-  const s = UPS.parseSize("Energy Waffle 6 ct • 1.06 oz");
-  return s && approx(s.qty, 6.36) && s.unitKey === "oz";
-})(), UPS.parseSize("Energy Waffle 6 ct • 1.06 oz"));
+ok("count + weight: weight is the TOTAL, count ignored ('10 ct • 1.05 oz')", (() => {
+  // A listed weight on a multi-pack is the net total, not per-item — never multiply.
+  const s = UPS.parseSize("Roasted Seaweed Snack 10 ct • 1.05 oz");
+  return s && s.unitKey === "oz" && approx(s.qty, 1.05);
+})(), UPS.parseSize("Roasted Seaweed Snack 10 ct • 1.05 oz"));
+ok("count + weight: '6 ct • 2.6 oz' -> 2.6 oz total", (() => {
+  const s = UPS.parseSize("Crunchy Rollers 6 ct • 2.6 oz");
+  return s && approx(s.qty, 2.6);
+})(), UPS.parseSize("Crunchy Rollers 6 ct • 2.6 oz"));
 ok("'(25 oz, 30 ct)' is NOT multiplied (total, not per-item)", (() => {
   const s = UPS.parseSize("Tortillas (25 oz, 30 ct) 750 oz");
   return s && approx(s.qty, 25); // not 25*30
