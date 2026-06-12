@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unit Price Sorter</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="hd">
+      <h1>Unit Price Sorter</h1>
+      <span class="ver">v1.0</span>
+    </header>
+
+    <p class="lead">
+      Re-sorts grocery listings by their <strong>true unit price</strong>
+      (per&nbsp;lb, per&nbsp;fl&nbsp;oz, or per&nbsp;each) instead of the
+      sticker price.
+    </p>
+
+    <ol class="steps">
+      <li>Open a grocery store page on <strong>Uber&nbsp;Eats</strong>.</li>
+      <li>Find the floating <em>Unit Price Sorter</em> panel (bottom-right).</li>
+      <li>Click <strong>“Sort by unit price.”</strong> The page auto-scrolls to
+        load every item, then groups and ranks them.</li>
+      <li>Use <strong>Order</strong> to flip cheapest-first / priciest-first.</li>
+    </ol>
+
+    <div class="legend">
+      <div class="legend__row">
+        <span class="chip chip--listed">listed</span>
+        unit price shown by Uber&nbsp;Eats
+      </div>
+      <div class="legend__row">
+        <span class="chip chip--computed">computed</span>
+        derived by the extension — sanity-check it
+      </div>
+    </div>
+
+    <p class="note">
+      Items are grouped by unit family (weight / volume / count) and never
+      compared across families. Everything runs locally — no data leaves your
+      browser. Reload the page to undo.
+    </p>
+  </body>
+</html>
