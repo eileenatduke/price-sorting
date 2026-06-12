@@ -179,6 +179,14 @@ ok("ignores tiny per-pack '0.55 oz', uses package size '6.7 oz'", (() => {
   const s = UPS.parseSize("Fruit Snacks 0.55 oz 6.7 oz");
   return s && s.unitKey === "oz" && approx(s.qty, 6.7);
 })(), UPS.parseSize("Fruit Snacks 0.55 oz 6.7 oz"));
+ok("keeps a genuinely tiny size when it's the ONLY size (0.35 oz)", (() => {
+  const s = UPS.parseSize("Roasted Seaweed Snack 0.35 oz");
+  return s && s.unitKey === "oz" && approx(s.qty, 0.35);
+})(), UPS.parseSize("Roasted Seaweed Snack 0.35 oz"));
+ok("keeps tiny-only '0.7 oz' jel dessert", (() => {
+  const s = UPS.parseSize("Strawberry Jel Dessert 0.7 oz");
+  return s && approx(s.qty, 0.7);
+})(), UPS.parseSize("Strawberry Jel Dessert 0.7 oz"));
 
 /* ---------------- adapter extraction ---------------- */
 section("adapter (ubereats) extraction");

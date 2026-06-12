@@ -147,11 +147,12 @@
     }
     if (!cands.length) return null;
 
-    // Reject implausibly tiny sizes first: a "6g" (nutrition fact) or a small
-    // per-serving/per-pack weight is not the package size. A real grocery
-    // package isn't ~0.8 oz / ~0.3 fl oz. Among the remaining REAL sizes the
-    // smallest still wins, which also kills inflated errors (a "20.5 lbs" typo
-    // for "20.5 oz", or a bogus "750 oz").
+    // A "tiny" candidate (below these canonical sizes) is usually a nutrition
+    // fact ("6g") or a per-serving value, not the package size. But a genuinely
+    // tiny product (0.35 oz seaweed, 0.7 oz jel dessert) may have no larger size
+    // at all — so we drop the tiny ones ONLY when a real size remains in the
+    // same family; otherwise we keep them. Among the kept set the smallest wins,
+    // which still defeats inflated errors (a "20.5 lbs" typo, a bogus "750 oz").
     const MIN_CANONICAL = {
       [UPS.FAMILY.WEIGHT]: 0.05, // lb (~0.8 oz)
       [UPS.FAMILY.VOLUME]: 0.3, // fl oz
@@ -162,13 +163,11 @@
     // in the name, which we must NOT pick. Then weight, then count.
     const order = [UPS.FAMILY.VOLUME, UPS.FAMILY.WEIGHT, UPS.FAMILY.COUNT];
     for (const fam of order) {
-      const inFam = cands
-        .filter((c) => c.family === fam && c.canonical >= MIN_CANONICAL[fam])
-        .sort((a, b) => a.canonical - b.canonical); // smallest real size wins
-      if (inFam.length) {
-        const best = inFam[0];
-        return { qty: best.qty, unitKey: best.unitKey, unitRaw: best.unitRaw };
-      }
+      const all = cands.filter((c) => c.family === fam);
+      if (!all.length) continue;
+      const real = all.filter((c) => c.canonical >= MIN_CANONICAL[fam]);
+      const pick = (real.length ? real : all).sort((a, b) => a.canonical - b.canonical)[0];
+      return { qty: pick.qty, unitKey: pick.unitKey, unitRaw: pick.unitRaw };
     }
     return null;
   }
