@@ -106,7 +106,16 @@
   function parseSize(text) {
     if (!text) return null;
 
-    // "N ct • W oz" — N items of W (weight/volume) each → total = N × W.
+    // "N ct • W oz" can mean N items of W *each* (multiply to get the box total).
+    // But the SAME shape appears when W is already the package TOTAL ("12 ct,
+    // 14 oz" = a 14 oz box of 12). The two are indistinguishable in text, so we
+    // only multiply when W is small enough to be a single serving; a larger W is
+    // the total and is used directly by the candidate logic below. (Explicit
+    // "2 x 12 oz" multipliers are still handled there via SIZE_RE.)
+    const PER_ITEM_MAX = {
+      [UPS.FAMILY.WEIGHT]: 0.25, // lb (~4 oz): a single bar/waffle/pouch/cup
+      [UPS.FAMILY.VOLUME]: 20, // fl oz: a single can/bottle
+    };
     const pack = PACK_RE.exec(text);
     if (pack) {
       const n = toNumber(pack[1]);
@@ -116,7 +125,8 @@
       if (
         u &&
         (u.family === UPS.FAMILY.WEIGHT || u.family === UPS.FAMILY.VOLUME) &&
-        isFinite(n) && n > 0 && isFinite(per) && per > 0
+        isFinite(n) && n > 0 && isFinite(per) && per > 0 &&
+        per / u.factor <= PER_ITEM_MAX[u.family]
       ) {
         return { qty: n * per, unitKey, unitRaw: pack[3] };
       }

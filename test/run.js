@@ -158,6 +158,14 @@ ok("'(25 oz, 30 ct)' is NOT multiplied (total, not per-item)", (() => {
   const s = UPS.parseSize("Tortillas (25 oz, 30 ct) 750 oz");
   return s && approx(s.qty, 25); // not 25*30
 })());
+ok("'12 ct, 14 oz' is NOT multiplied (14 oz is the package total)", (() => {
+  const s = UPS.parseSize("Granola Bars 12 ct, 14 oz");
+  return s && s.unitKey === "oz" && approx(s.qty, 14); // not 12*14
+})(), UPS.parseSize("Granola Bars 12 ct, 14 oz"));
+ok("'10 ct • 8 oz' is NOT multiplied (8 oz is the total)", (() => {
+  const s = UPS.parseSize("Snack Cups 10 ct • 8 oz");
+  return s && approx(s.qty, 8); // not 10*8
+})(), UPS.parseSize("Snack Cups 10 ct • 8 oz"));
 ok("liquid: prefers fl oz over a (wrong) weight in the name", (() => {
   // Milk lists a bogus weight "(133.5 oz)" plus the real "133.5 fl oz" volume.
   const s = UPS.parseSize("Whole Milk (133.5 oz) 133.5 fl oz");
