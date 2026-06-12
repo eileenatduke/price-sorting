@@ -107,16 +107,15 @@
           cell.appendChild(line);
         }
 
-        // Click a snapshot → reveal Uber's real card so the user can add it.
-        if (item.testid) {
-          cell.style.cursor = "pointer";
-          cell.addEventListener("click", () => revealReal(doc, item.testid));
-        }
-
+        cell.style.cursor = "pointer";
         our.appendChild(cell);
         count++;
       }
     }
+
+    // One delegated handler: clicking a snapshot opens the REAL item popup over
+    // the sorted grid via client-side navigation (no reload, sort preserved).
+    our.addEventListener("click", (e) => openItem(e, doc), true);
 
     // Insert our grid where the live grid sits; CSS (.ups-global-active) hides the
     // live cards. Insertion point is just an anchor — its cards are hidden by class.
@@ -129,12 +128,25 @@
     return count;
   }
 
-  /** Restore Uber's live cards and scroll to the chosen real card so it can be added. */
-  function revealReal(doc, testid) {
-    doc.documentElement.classList.remove(ACTIVE_CLASS);
-    doc.querySelectorAll("." + SORTED_GRID_CLASS).forEach((n) => n.remove());
-    const real = doc.querySelector('[data-testid="' + testid + '"]');
-    if (real && real.scrollIntoView) real.scrollIntoView({ behavior: "smooth", block: "center" });
+  /**
+   * Open the real Uber item popup for a clicked snapshot card. The clone carries
+   * the item's URL in its <a href>; we prevent the default (which would full-page
+   * reload) and instead drive Uber's SPA router with pushState + popstate, so the
+   * quick-view opens as an OVERLAY on top of our sorted grid. We flag this on UPS
+   * so the content script keeps the sort across the item route (main.js).
+   */
+  function openItem(e, doc) {
+    const cell = e.target.closest && e.target.closest(".ups-cell");
+    if (!cell) return;
+    const a = cell.querySelector("a[href]");
+    const href = a && a.href;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!href) return;
+    UPS._listHref = global.location.href; // the list we'll return to
+    UPS._itemViewing = true;
+    global.history.pushState({}, "", href);
+    global.dispatchEvent(new global.PopStateEvent("popstate", { state: global.history.state }));
   }
 
   /**

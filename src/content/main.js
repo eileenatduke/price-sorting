@@ -187,6 +187,14 @@
   function checkUrl() {
     if (location.href === lastHref) return;
     lastHref = location.href;
+
+    // An item quick-view we opened over the sorted grid (global.js) is an OVERLAY,
+    // not a list change — keep the sort. Drop the flag once we're back on the list.
+    if (UPS._itemViewing) {
+      if (UPS._listHref && location.href === UPS._listHref) UPS._itemViewing = false;
+      return;
+    }
+
     const keyChanged = storeKey() !== lastKey;
     lastKey = storeKey();
     if (UPS.clearSorted) UPS.clearSorted(document); // new page = new items, drop stale sort
