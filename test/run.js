@@ -163,6 +163,14 @@ ok("liquid: prefers fl oz over a (wrong) weight in the name", (() => {
   const s = UPS.parseSize("Whole Milk (133.5 oz) 133.5 fl oz");
   return s && s.unitKey === "floz" && approx(s.qty, 133.5);
 })(), UPS.parseSize("Whole Milk (133.5 oz) 133.5 fl oz"));
+ok("ignores tiny nutrition value '6g', uses package size '15.5 oz'", (() => {
+  const s = UPS.parseSize("Blueberry Wheatfuls Cereal 6g 15.5 oz");
+  return s && s.unitKey === "oz" && approx(s.qty, 15.5);
+})(), UPS.parseSize("Blueberry Wheatfuls Cereal 6g 15.5 oz"));
+ok("ignores tiny per-pack '0.55 oz', uses package size '6.7 oz'", (() => {
+  const s = UPS.parseSize("Fruit Snacks 0.55 oz 6.7 oz");
+  return s && s.unitKey === "oz" && approx(s.qty, 6.7);
+})(), UPS.parseSize("Fruit Snacks 0.55 oz 6.7 oz"));
 
 /* ---------------- adapter extraction ---------------- */
 section("adapter (ubereats) extraction");

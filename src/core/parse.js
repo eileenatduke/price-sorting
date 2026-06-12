@@ -137,15 +137,25 @@
     }
     if (!cands.length) return null;
 
+    // Reject implausibly tiny sizes first: a "6g" (nutrition fact) or a small
+    // per-serving/per-pack weight is not the package size. A real grocery
+    // package isn't ~0.8 oz / ~0.3 fl oz. Among the remaining REAL sizes the
+    // smallest still wins, which also kills inflated errors (a "20.5 lbs" typo
+    // for "20.5 oz", or a bogus "750 oz").
+    const MIN_CANONICAL = {
+      [UPS.FAMILY.WEIGHT]: 0.05, // lb (~0.8 oz)
+      [UPS.FAMILY.VOLUME]: 0.3, // fl oz
+      [UPS.FAMILY.COUNT]: 1, // each
+    };
     // Prefer VOLUME first: a volume unit (fl oz, L, gal) means the item is a
-    // liquid, which must be priced by volume — Uber often also lists a (wrong,
-    // density-derived) weight in the name, which we must NOT pick. Then weight,
-    // then count.
+    // liquid, priced by volume — Uber often lists a wrong density-derived weight
+    // in the name, which we must NOT pick. Then weight, then count.
     const order = [UPS.FAMILY.VOLUME, UPS.FAMILY.WEIGHT, UPS.FAMILY.COUNT];
     for (const fam of order) {
-      const inFam = cands.filter((c) => c.family === fam);
+      const inFam = cands
+        .filter((c) => c.family === fam && c.canonical >= MIN_CANONICAL[fam])
+        .sort((a, b) => a.canonical - b.canonical); // smallest real size wins
       if (inFam.length) {
-        inFam.sort((a, b) => a.canonical - b.canonical); // smallest real size wins
         const best = inFam[0];
         return { qty: best.qty, unitKey: best.unitKey, unitRaw: best.unitRaw };
       }
